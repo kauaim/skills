@@ -9,11 +9,12 @@ Each skill lives in its own top-level folder with a `SKILL.md` and its own
 
 ## Skills
 
-- [`prompt-injection-guard/`](prompt-injection-guard/) — screens third-party or
-  untrusted documents (PDFs, Word/Excel, email, web pages, pasted text) for
-  prompt-injection and hidden-instruction attacks before Claude acts on their
-  contents, and enforces the rule that ingested content is data, never
-  instructions.
+- [`prompt-injection-guard/`](prompt-injection-guard/) — general-purpose guard
+  against indirect prompt injection (OWASP LLM01:2025) in any untrusted content
+  (resumes, contracts, tickets, web pages, RAG documents, PRs, and more):
+  screens for prompt-injection and hidden-instruction attacks before Claude
+  acts on their contents, and enforces the rule that ingested content is data,
+  never instructions.
 
 More skills will be added over time, one folder each.
 
