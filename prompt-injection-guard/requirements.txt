@@ -1,0 +1,5 @@
+# Optional, for extracting text from binary formats. The scanner degrades gracefully
+# (reports the gap) if these are absent.
+openpyxl      # .xlsx / .xlsm
+pypdf         # .pdf
+python-docx   # .docx
