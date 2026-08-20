@@ -8,15 +8,17 @@ screen does not depend on the skill triggering. Receives the hook event as JSON 
 scans it, and surfaces any flags.
 
 Behavior:
-  - Informational by default: prints flags to stderr and exits 0 (the Read proceeds, and
-    the agent sees the warning). This is the safe default; the agent's doctrine handles it.
-  - Set GUARD_BLOCK=1 to exit 2 on a high-severity flag, which blocks the Read and feeds
-    the reason back to Claude for confirmation.
+  - Informational by default: prints flags to stderr and exits 0, and the Read proceeds.
+    NOTE: on exit 0, Claude Code shows stderr to the HUMAN in the terminal; the model
+    does not see it. Treat this mode as a tripwire log for the operator only.
+  - Set GUARD_BLOCK=1 to exit 2 on a high-severity flag. This blocks the Read and feeds
+    the reason back to Claude. It is the only mode in which the warning reaches the model.
 
 Only screens text-like and common document extensions; binaries and unknown types are
-skipped quietly. Never follows anything it reads.
+skipped quietly. Files inside this skill's own folder are skipped: its docs quote
+injection patterns by design and would always flag. Never follows anything it reads.
 
-Hook output contract (Claude Code): exit 0 = proceed (stderr is shown);
+Hook output contract (Claude Code): exit 0 = proceed (stderr is shown to the user);
 exit 2 = block, stderr is sent back to Claude as the reason.
 """
 import json
@@ -31,6 +33,9 @@ except Exception:
 
 SCAN_EXT = {".txt", ".md", ".csv", ".tsv", ".json", ".jsonl", ".html", ".htm", ".xml",
             ".log", ".eml", ".yaml", ".yml", ".rtf", ".pdf", ".docx", ".xlsx", ".xlsm"}
+
+# The skill's own docs quote injection patterns by design; never screen them.
+_SKILL_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 
 def _extract_path(data):
@@ -47,13 +52,15 @@ def main():
         data = json.load(sys.stdin)
     except Exception:
         sys.exit(0)
-    if (data.get("tool_name") or "").lower() not in ("read", "notebookread"):
+    if (data.get("tool_name") or "").lower() != "read":
         sys.exit(0)
     path = _extract_path(data)
     if not path:
         sys.exit(0)
     ext = os.path.splitext(path)[1].lower()
     if ext not in SCAN_EXT or not os.path.exists(path):
+        sys.exit(0)
+    if os.path.realpath(path).startswith(_SKILL_ROOT + os.sep):
         sys.exit(0)
 
     text, _ = _read_file_text(path)

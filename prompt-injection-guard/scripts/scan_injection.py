@@ -37,15 +37,17 @@ _PATTERNS = [
     (r"forget\s+(everything|all|your|the)\s+(above|previous|prior|instructions?|rules?)", "forget-context", "high"),
     (r"\byou\s+are\s+now\b", "role-reassignment", "high"),
     (r"\b(act|behave|respond|pretend\s+to\s+be|roleplay)\s+as\s+(an?\s+)?(ai|a\.?i\.?|assistant|chatbot|language\s+model|llm|admin(istrator)?|root|system|developer|dan|jailbreak)\b", "role-reassignment", "medium"),
-    (r"\bnew\s+(system\s+|updated\s+|revised\s+)?(instruction|prompt|role|persona|directive)s?\b", "new-instructions", "high"),
+    (r"\bnew\s+(system\s+|updated\s+|revised\s+)?(instruction|prompt|directive)s?\b", "new-instructions", "high"),
+    (r"\byour\s+new\s+(role|persona)\b", "role-reassignment", "medium"),
     (r"\b(reveal|print|repeat|show|disclose|output)\s+(your\s+|the\s+)?(system\s+prompt|instructions|prompt|guidelines|rules)\b", "exfiltrate-system-prompt", "high"),
     (r"\bsystem\s+prompt\b", "system-prompt-reference", "medium"),
     (r"\bas\s+an?\s+(ai|artificial intelligence|large language model|language model|llm|assistant|chatbot)\b", "ai-address", "medium"),
     (r"\b(developer|jailbreak|dan|god|sudo|admin)\s+mode\b", "jailbreak-mode", "high"),
     (r"\bscore\s+(this|us|it|the\s+\w+|me)?\s*(a\s+|as\s+)?(100|perfect|max(imum)?|full\s+marks|top|highest|a\+?)", "scoring-command", "high"),
     (r"\b(mark|rate|set|treat|consider|classify|label)\s+(all|every|everything|each|this|it)\b.{0,28}\b(compliant|pass(ed|ing)?|approved|safe|secure|clean|yes|green|satisfactory|low\s+risk)\b", "mark-all-approved", "high"),
-    (r"\bdo\s+not\s+(flag|report|mention|note|record|disclose|include|warn|alert)\b", "suppress-findings", "high"),
-    (r"\b(approve|pass|accept|clear|whitelist|allow)\s+(this\s+)?(vendor|assessment|review|request|document|application|transaction|user)\b", "approve-command", "high"),
+    (r"\bdo\s+not\s+(flag|report|mention|note|record|include|warn|alert)\b", "suppress-findings", "high"),
+    (r"\bdo\s+not\s+disclose\b", "suppress-findings", "medium"),
+    (r"\b(approve|pass|accept|clear|whitelist|allow)\s+(this\s+)?(vendor|assessment|review|request|document|application|transaction|user)\b", "approve-command", "medium"),
     (r"\b(set|make|keep|force|lower|reduce)\s+(the\s+)?(residual|inherent|risk|tier|rating|score|severity)\b.{0,18}\b(low|very\s+low|minimal|none|zero|acceptable|safe)\b", "set-risk-low", "high"),
     (r"\boverride\b.{0,30}\b(rubric|score|scoring|policy|finding|control|assessment|methodology|rule|guardrail|safety)\b", "override-directive", "high"),
     (r"\b(send|forward|exfiltrat\w*|upload|transmit|post|e-?mail|leak|copy)\s+(it|them|this|the|all|your|our|every|results?|data|file|report|register)\b.{0,30}\b(to|at|http|www|@|address|server|endpoint|url)\b", "exfiltration-directive", "high"),
@@ -112,10 +114,13 @@ def _read_file_text(path):
     ext = os.path.splitext(path)[1].lower()
     try:
         if ext in ("", ".txt", ".md", ".csv", ".tsv", ".json", ".jsonl", ".html", ".htm", ".xml", ".log", ".eml", ".yaml", ".yml", ".rtf"):
-            with open(path, "r", errors="replace") as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 return f.read(), ""
         if ext in (".xlsx", ".xlsm"):
-            import openpyxl
+            try:
+                import openpyxl
+            except Exception:
+                return "", "xlsx extraction unavailable (pip install openpyxl); scan skipped"
             wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
             parts = []
             for ws in wb.worksheets:
@@ -196,7 +201,13 @@ def main():
     if args.text:
         flags = scan_text(args.text, location="<text>"); notes = []; sources = ["<text>"]
     elif args.path:
+        if not os.path.exists(args.path):
+            print(f"ERROR: not found: {args.path}", file=sys.stderr)
+            sys.exit(2)
         paths = _collect(args.path)
+        if not paths:
+            print(f"ERROR: no files to scan under: {args.path}", file=sys.stderr)
+            sys.exit(2)
         sources = [os.path.relpath(p, args.path if os.path.isdir(args.path) else os.path.dirname(args.path) or ".") for p in paths]
         flags, notes = scan_paths(paths)
     else:
